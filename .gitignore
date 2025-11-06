@@ -6,3 +6,7 @@
 .langgraph_api/
  
 vector_store/
+
+
+# ignore .env
+.env
