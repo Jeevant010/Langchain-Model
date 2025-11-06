@@ -7,3 +7,4 @@ pymupdf
 sentence-transformers
 faiss-cpu
 chromadb
+langchain_groq
