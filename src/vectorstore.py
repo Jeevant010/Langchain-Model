@@ -28,9 +28,48 @@ class FaissVectorStore:
         self.save()
         print(f"[INFO] Vector Store built and saved to {self.persist_dir}")
         
-    def add_embedding(self, embedding : np.ndarray, metadatas : List[Any] = None):
-        dim = embedding.shape[1]
+    def add_embedding(self, embeddings : np.ndarray, metadatas : List[Any] = None):
+        dim = embeddings.shape[1]
         if self.index is None:
             self.index = faiss.IndexFlatL2(dim)
-        self.index.add(embedding)
+        self.index.add(embeddings)
+        if metadatas:
+            self.metadata.extend(metadatas)
+        print(f"[INFO] Added {embeddings.shape[0]} vectors to Faiss Index.")
         
+    def save(self):
+        faiss_path = os.path.join(self.persist_dir, "faiss.index")
+        meta_path = os.path.join(self.persist_dir, "metadata.pkl")
+        faiss.write_index(self.index, faiss_path)
+        with open(meta_path, "wb") as f:
+            pickle.dump(self.metadata, f)
+        print(f"[INFO] Saved Faiss index and metadata to {self.persist_dir}")
+        
+    def load(self):
+        faiss_path = os.path.join(self.persist_dir, "faiss.index")
+        meta_path = os.path.join(self.persist_dir, "metadata.pkl")
+        self.index = faiss.read_index(faiss_path)
+        with open(meta_path, 'rb') as f:
+            self.metadata = pickle.load(f)
+        print(f"[INFO] Loaded Faiss Index and metadata from {self.persist_dir}")
+        
+    def search(self, query_embeddings: np.ndarray, top_k : int = 5):
+        D, I = self.index.search(query_embeddings, top_k)
+        results = []
+        for idx, dist in zip(I[0], D[0]):
+            meta = self.metadata[idx] if idx < len(self.metadata) else None 
+            results.append({"index" : idx, "distance" : dist, "metadata" : meta})
+        return results
+    
+    def query(self, query_text : str, top_k : int = 5):
+        print(f"[INFO] Querying vector store for : '{query_text}'")
+        query_emb = self.model.encode([query_text]).astype('float32')
+        return self.search(query_emb, top_k=top_k)
+    
+    if __name__ == "__main__":
+        from data_loader import load_all_documents
+        docs = load_all_documents("data")
+        store = FaissVectorStore("faiss_store")
+        store.build_from_documents(docs)
+        store.load()
+        print(store.query("What is DataBase Management System?", top_k = 3)) 
