@@ -9,7 +9,7 @@ from src.embedding import EmbeddingPipeline
 class FaissVectorStore:
     def __init__(self, persist_dir : str = "faiss_Store", embedding_model : str = "all-MiniLM-L6-v2", chunk_size : int = 1000, chunk_overlap : int = 200 ):
         self.persist_dir = persist_dir
-        os.makedirs(self.persist, exist_ok=True)
+        os.makedirs(self.persist_dir, exist_ok=True)
         self.index = None
         self.metadata = []
         self.embedding_model = embedding_model
@@ -20,7 +20,7 @@ class FaissVectorStore:
         
     def build_from_documents(self, documents: List[Any]):
         print(f"[INFO] Building vector store {len(documents)} raw document...")
-        emp_pipe = EmbeddingPipeline(model_name=self.embedding_model, chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
+        emb_pipe = EmbeddingPipeline(model_name=self.embedding_model, chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
         chunks = emb_pipe.embed_chunks(chunks)
         embeddings = emb_pipe.embed_chunks(chunks)
         metadatas = [{"texts": chunk.page_content} for chunk in chunks]
@@ -28,7 +28,7 @@ class FaissVectorStore:
         self.save()
         print(f"[INFO] Vector Store built and saved to {self.persist_dir}")
         
-    def add_embedding(self, embeddings : np.ndarray, metadatas : List[Any] = None):
+    def add_embeddings(self, embeddings : np.ndarray, metadatas : List[Any] = None):
         dim = embeddings.shape[1]
         if self.index is None:
             self.index = faiss.IndexFlatL2(dim)
