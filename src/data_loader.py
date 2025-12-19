@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import List, Any
-from langchain_community.document_loader import PyPDFLoader, TextLoader, CSVLoader
-from langchain_community.document_loader import Docx2txtLoader
-from langchain_community.document_loader.excel import UnstructuredExcelLoader
-from langchain_community.document_loader import JOSNLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader, CSVLoader
+from langchain_community.document_loaders import Docx2txtLoader
+from langchain_community.document_loaders.excel import UnstructuredExcelLoader
+from langchain_community.document_loaders import JSONLoader
 
 
 def load_all_documents(data_dir: str) -> List[Any] :
@@ -15,14 +15,14 @@ def load_all_documents(data_dir: str) -> List[Any] :
     
     ##  Pdf files
     
-    pdf_files = list(data_path.glob('**.*.pdf'))
+    pdf_files = list(data_path.glob('**/*.pdf'))
     print(f"[DEBUG] Found {len(pdf_files)} PDF files : { [str(f) for f in pdf_files] }")
     for pdf_file in pdf_files:
         print(f"[DEBUG] Loading PDF: {pdf_file}")
         try:
             loader = PyPDFLoader(str(pdf_file))
             loaded = loader.load()
-            print(f"[DEBUG] Loaded {len(loaded)} PDF docs from {pdf_files}")
+            print(f"[DEBUG] Loaded {len(loaded)} PDF docs from {pdf_file}")
             document.extend(loaded)
         except Exception as e:
             print(f"[ERROR] Failed to load PDF {pdf_file} : {e}")
@@ -31,12 +31,12 @@ def load_all_documents(data_dir: str) -> List[Any] :
             
     ## TXT files
     
-    txt_files = list(data_path.glob('**.*.txt'))
+    txt_files = list(data_path.glob('**/*.txt'))
     print(f'[DEBUG] Founded {len(txt_files)} TXT files: {[str(f) for f in txt_files]} ')
     for txt_file in txt_files:
         print(f"[DEBUG] Loading TXT : {txt_file}")
         try:
-            loader = TextLoader(str(txt_file))
+            loader = TextLoader(str(txt_file), encoding="utf-8")
             loaded = loader.load()
             print(f"[DEBUG] Loaded {len(loaded)} TXT docs from {txt_file}")
             document.extend(loaded)
@@ -82,7 +82,7 @@ def load_all_documents(data_dir: str) -> List[Any] :
     ## Word file
     
     
-    word_files = list(data_path.glob('**.*.docs'))
+    word_files = list(data_path.glob('**/*.docx'))
     print(f"[DEBUG] Found {len(word_files)} word files : {[str(f) for f in word_files]}")
     for word_file in word_files:
         print(f"[DEBUG] Loaded WORD : {word_file}")
@@ -105,10 +105,14 @@ def load_all_documents(data_dir: str) -> List[Any] :
     for json_file in json_files:
         print(f"[DEBUG] Loaded JSON : {(str(json_file))}")
         try:
-            loader = JOSNLoader(str(json_file))
+            loader = JSONLoader(
+                str(json_file),
+                jq_schema=".",
+                text_content=False
+                )
             loaded = loader.load()
             print(f"[DEBUG] Loaded {(len(loaded))} JSON from {json_file}")
-            document.extend(json_file)
+            document.extend(loaded)
         except Exception as e:
             print(f"[ERROR] Failed to load JSON file{json_file} : {e}")
         
@@ -117,7 +121,7 @@ def load_all_documents(data_dir: str) -> List[Any] :
     return document
 
 
-if __name__ == '-__main__':
+if __name__ == '__main__':
     docs = load_all_documents('data')
     print(f"Loaded {len(docs)} document.")
     print("Example document:", docs[0] if docs else None)
