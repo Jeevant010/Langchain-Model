@@ -11,8 +11,8 @@ class RAGSearch:
         
         faiss_path = os.path.join(persist_dir, "faiss.index")
         meta_path = os.path.join(persist_dir, "metadata.pkl")
-        if not (os.path.join(faiss_path) and os.path.exists(meta_path)):
-            from data_loader import load_all_documents
+        if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
+            from src.data_loader import load_all_documents
             docs = load_all_documents("data")
             self.vectorstore.build_from_documents(docs)
         else:
@@ -32,8 +32,8 @@ class RAGSearch:
         response = self.llm.invoke([prompt])
         return response.content
     
-    if __name__ == "__main__":
-        rag_search = RAGSearch()
-        query = "What is Data Base Management System?"
-        summary = rag_search.search_and_summarize(query, top_k=3)
-        print("Summary:", summary)
+if __name__ == "__main__":
+    rag_search = RAGSearch()
+    query = "What is Data Base Management System?"
+    summary = rag_search.search_and_summarize(query, top_k=3)
+    print("Summary:", summary)
