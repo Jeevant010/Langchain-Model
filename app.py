@@ -1,16 +1,84 @@
-from src.data_loader import load_all_documents
-from src.vectorstore import FaissVectorStore
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from src.search import RAGSearch
+import uvicorn
 
+# -------------------------
+# FastAPI App
+# -------------------------
+app = FastAPI(
+    title="RAG Question Answering API",
+    description="FAISS + SentenceTransformers + Groq LLM",
+    version="1.0.0"
+)
+
+# -------------------------
+# Load RAG ONCE (startup)
+# -------------------------
+rag_search: RAGSearch | None = None
+
+
+@app.on_event("startup")
+def load_rag():
+    global rag_search
+    try:
+        rag_search = RAGSearch(
+            persist_dir="faiss_store",
+            embedding_model="all-MiniLM-L6-v2",
+            llm_model="llama-3.1-8b-instant"
+        )
+        print("[INFO] RAG system loaded successfully")
+    except Exception as e:
+        print(f"[ERROR] Failed to load RAG system: {e}")
+        raise
+
+
+# -------------------------
+# Request / Response Models
+# -------------------------
+class QueryRequest(BaseModel):
+    query: str
+    top_k: int = 3
+
+
+class QueryResponse(BaseModel):
+    query: str
+    answer: str
+
+
+# -------------------------
+# Routes
+# -------------------------
+@app.get("/")
+def root():
+    return {"message": "RAG API is running. Go to /docs"}
+
+
+@app.post("/query", response_model=QueryResponse)
+def query_rag(payload: QueryRequest):
+    if not rag_search:
+        raise HTTPException(status_code=503, detail="RAG system not ready")
+
+    try:
+        answer = rag_search.search_and_summarize(
+            query=payload.query,
+            top_k=payload.top_k
+        )
+        return QueryResponse(
+            query=payload.query,
+            answer=answer
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------
+# Run locally
+# -------------------------
 if __name__ == "__main__":
-    
-    docs = load_all_documents("data")
-    store = FaissVectorStore("faiss_Store")
-    #store.build_from_documents(docs)
-    store.load()
-    # print(store.query("What is DataBase Management System?"))
-    rag_search = RAGSearch()
-    query = "What is DataBase Management System?"
-    summary = rag_search.search_and_summarize(query=query, top_k=3)
-    print("Summary:" , summary)
-    
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )

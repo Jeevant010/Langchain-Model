@@ -13,4 +13,6 @@ typesense
 setuptools
 pathlib
 dotenv
-
+uvicorn
+pydantic
+fastapi
