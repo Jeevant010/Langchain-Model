@@ -21,7 +21,7 @@ class FaissVectorStore:
     def build_from_documents(self, documents: List[Any]):
         print(f"[INFO] Building vector store {len(documents)} raw document...")
         emb_pipe = EmbeddingPipeline(model_name=self.embedding_model, chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
-        chunks = emb_pipe.embed_chunks(chunks)
+        chunks = emb_pipe.chunk_documents(documents)
         embeddings = emb_pipe.embed_chunks(chunks)
         metadatas = [{"texts": chunk.page_content} for chunk in chunks]
         self.add_embeddings(np.array(embeddings).astype('float32'), metadatas)
@@ -66,10 +66,10 @@ class FaissVectorStore:
         query_emb = self.model.encode([query_text]).astype('float32')
         return self.search(query_emb, top_k=top_k)
     
-    if __name__ == "__main__":
-        from data_loader import load_all_documents
-        docs = load_all_documents("data")
-        store = FaissVectorStore("faiss_store")
-        store.build_from_documents(docs)
-        store.load()
-        print(store.query("What is DataBase Management System?", top_k = 3)) 
+if __name__ == "__main__":
+    from src.data_loader import load_all_documents
+    docs = load_all_documents("Research/data/pdf")
+    store = FaissVectorStore("faiss_store")
+    store.build_from_documents(docs)
+    store.load()
+    print(store.query("What is DataBase Management System?", top_k = 3)) 

@@ -1,5 +1,5 @@
 from typing import List, Any
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from src.data_loader import load_all_documents
@@ -31,7 +31,7 @@ class EmbeddingPipeline:
         return embeddings
     
 if __name__ == "__main__":
-    docs = load_all_documents('data')
+    docs = load_all_documents('Research/data/pdf')
     emb_pipe = EmbeddingPipeline()
     chunks = emb_pipe.chunk_documents(docs)
     embeddings = emb_pipe.embed_chunks(chunks)

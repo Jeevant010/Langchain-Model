@@ -122,7 +122,7 @@ def load_all_documents(data_dir: str) -> List[Any] :
 
 
 if __name__ == '__main__':
-    docs = load_all_documents('data')
+    docs = load_all_documents('Research/data/pdf')
     print(f"Loaded {len(docs)} document.")
     print("Example document:", docs[0] if docs else None)
             
