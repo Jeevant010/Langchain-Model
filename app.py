@@ -1,7 +1,16 @@
+import os
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from src.search import RAGSearch
+from dotenv import load_dotenv
+
+from src.search import RAGSearch, RetrievalResult
+
 import uvicorn
+
+load_dotenv()
 
 # -------------------------
 # FastAPI App
@@ -9,23 +18,36 @@ import uvicorn
 app = FastAPI(
     title="RAG Question Answering API",
     description="FAISS + SentenceTransformers + Groq LLM",
-    version="1.0.0"
+    version="1.1.0"
+)
+
+# CORS for React/Node clients
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in cors_origins] if cors_origins else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # -------------------------
 # Load RAG ONCE (startup)
 # -------------------------
-rag_search: RAGSearch | None = None
-
+rag_search: Optional[RAGSearch] = None
 
 @app.on_event("startup")
 def load_rag():
     global rag_search
     try:
+        persist_dir = os.getenv("PERSIST_DIR", "faiss_store")
+        embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+        llm_model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+
         rag_search = RAGSearch(
-            persist_dir="faiss_store",
-            embedding_model="all-MiniLM-L6-v2",
-            llm_model="llama-3.1-8b-instant"
+            persist_dir=persist_dir,
+            embedding_model=embedding_model,
+            llm_model=llm_model,
         )
         print("[INFO] RAG system loaded successfully")
     except Exception as e:
@@ -36,14 +58,19 @@ def load_rag():
 # -------------------------
 # Request / Response Models
 # -------------------------
+class SourceItem(BaseModel):
+    index: int
+    distance: float
+    text: Optional[str] = None
+
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 3
 
-
 class QueryResponse(BaseModel):
     query: str
     answer: str
+    sources: List[SourceItem]
 
 
 # -------------------------
@@ -53,6 +80,18 @@ class QueryResponse(BaseModel):
 def root():
     return {"message": "RAG API is running. Go to /docs"}
 
+@app.get("/health")
+def health():
+    if not rag_search:
+        return {"ready": False}
+    meta_count = len(rag_search.vectorstore.metadata) if rag_search.vectorstore else 0
+    return {
+        "ready": True,
+        "persist_dir": rag_search.vectorstore.persist_dir,
+        "documents_indexed": meta_count,
+        "embedding_model": rag_search.embedding_model,
+        "llm_model": rag_search.llm_model,
+    }
 
 @app.post("/query", response_model=QueryResponse)
 def query_rag(payload: QueryRequest):
@@ -60,14 +99,16 @@ def query_rag(payload: QueryRequest):
         raise HTTPException(status_code=503, detail="RAG system not ready")
 
     try:
-        answer = rag_search.search_and_summarize(
-            query=payload.query,
-            top_k=payload.top_k
-        )
-        return QueryResponse(
-            query=payload.query,
-            answer=answer
-        )
+        # Retrieve and summarize
+        sources: List[RetrievalResult] = rag_search.retrieve(payload.query, top_k=payload.top_k)
+        answer: str = rag_search.summarize(payload.query, sources)
+
+        # Map sources for response
+        resp_sources = [
+            SourceItem(index=s.index, distance=float(s.distance), text=s.text)
+            for s in sources
+        ]
+        return QueryResponse(query=payload.query, answer=answer, sources=resp_sources)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -79,6 +120,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
-        port=8000,
+        port=int(os.getenv("PORT", "8000")),
         reload=True
     )
