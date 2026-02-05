@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from src.search import RAGSearch
 import uvicorn
 
+from fastapi.middleware.cors import CORSMiddleware
 # -------------------------
 # FastAPI App
 # -------------------------
@@ -11,7 +12,13 @@ app = FastAPI(
     description="FAISS + SentenceTransformers + Groq LLM",
     version="1.0.0"
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows your React app to connect
+    allow_credentials=True,
+    allow_methods=["*"], 
+    allow_headers=["*"],
+)
 # -------------------------
 # Load RAG ONCE (startup)
 # -------------------------

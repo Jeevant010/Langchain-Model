@@ -31,7 +31,22 @@ class RAGSearch:
         context = "\n\n".join(texts)
         if not context:
             return "No relevant documents found."
-        prompt = f"""Summarize the following context for the query: '{query}'\n\nContext:\n{context}\n\nSummary:"""
+        prompt = f"""You are a helpful assistant. Answer the user's query: '{query}'
+        
+Prioritize Context: Use the provided text as the primary source. If the answer isn't there, use general knowledge but clearly state the source.
+
+Structure: Use a hierarchical format (H2/H3 headers, bullet points, and tables). No walls of text.
+
+Density: Provide a high signal-to-noise ratio. Eliminate filler phrases like "It is important to note" or "I hope this helps."
+
+Formatting: Use bolding for key terms and code blocks for technical syntax.
+
+Tone: Direct, logical, and concise.
+Also if the context is from the documents, then mention "THE INFORMATION IS FROM THE DOCUMENTS PROVIDED".
+Context:
+{context}
+
+Answer:"""
         response = self.llm.invoke(prompt)
         return response.content
     
