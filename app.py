@@ -23,7 +23,7 @@ app = FastAPI(
 
 # CORS for React/Node clients
 cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
-app.add_middleware(
+app.add_middleware(     
     CORSMiddleware,
     allow_origins=[o.strip() for o in cors_origins] if cors_origins else ["*"],
     allow_credentials=True,
