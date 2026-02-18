@@ -1,5 +1,6 @@
 import os
 from typing import List, Optional
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,32 +13,12 @@ import uvicorn
 
 load_dotenv()
 
-# -------------------------
-# FastAPI App
-# -------------------------
-app = FastAPI(
-    title="RAG Question Answering API",
-    description="FAISS + SentenceTransformers + Groq LLM",
-    version="1.1.0"
-)
-
-# CORS for React/Node clients
-cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
-app.add_middleware(     
-    CORSMiddleware,
-    allow_origins=[o.strip() for o in cors_origins] if cors_origins else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# -------------------------
-# Load RAG ONCE (startup)
-# -------------------------
+# Global variable for RAG system
 rag_search: Optional[RAGSearch] = None
 
-@app.on_event("startup")
-def load_rag():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     global rag_search
     try:
         persist_dir = os.getenv("PERSIST_DIR", "faiss_store")
@@ -53,7 +34,31 @@ def load_rag():
     except Exception as e:
         print(f"[ERROR] Failed to load RAG system: {e}")
         raise
+    
+    yield  # Application runs here
+    
+    # Shutdown (cleanup if needed)
+    print("[INFO] Shutting down RAG system")
 
+# -------------------------
+# FastAPI App
+# -------------------------
+app = FastAPI(
+    title="RAG Question Answering API",
+    description="FAISS + SentenceTransformers + Groq LLM",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# CORS for React/Node clients
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+app.add_middleware(     
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in cors_origins] if cors_origins else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # -------------------------
 # Request / Response Models

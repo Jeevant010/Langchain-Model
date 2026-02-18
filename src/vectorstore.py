@@ -39,6 +39,11 @@ class FaissVectorStore:
         print(f"[INFO] Vector Store built and saved to {self.persist_dir}")
 
     def add_embeddings(self, embeddings: np.ndarray, metadatas: List[Any] = None):
+        # Handle empty embeddings case
+        if embeddings.size == 0:
+            print("[WARNING] No embeddings to add. Vector store remains empty.")
+            return
+            
         dim = embeddings.shape[1]
         if self.index is None:
             self.index = faiss.IndexFlatL2(dim)
@@ -49,7 +54,8 @@ class FaissVectorStore:
 
     def save(self):
         if self.index is None:
-            raise RuntimeError("Cannot save: index is empty. Add embeddings first.")
+            print("[WARNING] Cannot save: index is empty. Skipping save operation.")
+            return
         faiss_path = os.path.join(self.persist_dir, "faiss.index")
         meta_path = os.path.join(self.persist_dir, "metadata.pkl")
         faiss.write_index(self.index, faiss_path)
@@ -68,6 +74,10 @@ class FaissVectorStore:
         print(f"[INFO] Loaded Faiss Index and metadata from {self.persist_dir}")
 
     def search(self, query_embeddings: np.ndarray, top_k: int = 5):
+        if self.index is None:
+            print("[WARNING] Vector store is empty. No results to return.")
+            return []
+            
         D, I = self.index.search(query_embeddings, top_k)
         results = []
         for idx, dist in zip(I[0], D[0]):
@@ -76,6 +86,10 @@ class FaissVectorStore:
         return results
 
     def query(self, query_text: str, top_k: int = 5):
+        if self.index is None:
+            print("[WARNING] Vector store is empty. No results to return.")
+            return []
+            
         print(f"[INFO] Querying vector store for: '{query_text}'")
         query_emb = self.model.encode([query_text]).astype("float32")
         return self.search(query_emb, top_k=top_k)

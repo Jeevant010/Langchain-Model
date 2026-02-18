@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.vectorstore import FaissVectorStore
 
@@ -29,10 +30,28 @@ class RAGSearch:
         meta_path = os.path.join(persist_dir, "metadata.pkl")
 
         if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
-            # Build from local 'data' directory if index doesn't exist
+            # Build from local 'Research/data' directory if index doesn't exist  
             from src.data_loader import load_all_documents
-            docs = load_all_documents("data")
-            self.vectorstore.build_from_documents(docs)
+            # Try multiple possible data directories
+            data_dirs = ["Research/data", "data", "Data"]
+            docs = []
+            
+            for data_dir in data_dirs:
+                if os.path.exists(data_dir):
+                    print(f"[INFO] Checking for documents in: {data_dir}")
+                    docs = load_all_documents(data_dir)
+                    if docs:
+                        print(f"[INFO] Found {len(docs)} documents in {data_dir}")
+                        break
+                        
+            if not docs:
+                print("[WARNING] No documents found in any data directory. Vector store will be empty.")
+                print("[INFO] Please add documents to 'Research/data/', 'data/', or 'Data/' directory.")
+                # Create empty index for now
+                self.vectorstore.index = None
+                self.vectorstore.metadata = []
+            else:
+                self.vectorstore.build_from_documents(docs)
         else:
             self.vectorstore.load()
 
@@ -42,10 +61,15 @@ class RAGSearch:
             raise ValueError("GROQ_API_KEY missing in environment")
         self.llm_model = llm_model
         self.embedding_model = embedding_model
-        self.llm = ChatGroq(groq_api_key=groq_api_key, model_name=llm_model)
+        self.llm = ChatGroq(api_key=groq_api_key, model=llm_model, temperature=0.1)
         print(f"[INFO] Groq LLM initialized: {llm_model}")
 
     def retrieve(self, query: str, top_k: int = 5) -> List[RetrievalResult]:
+        # Check if vector store is empty
+        if self.vectorstore.index is None or len(self.vectorstore.metadata) == 0:
+            print("[WARNING] Vector store is empty. No documents to search.")
+            return []
+            
         results = self.vectorstore.query(query_text=query, top_k=top_k)
         out: List[RetrievalResult] = []
         for r in results:
@@ -54,17 +78,30 @@ class RAGSearch:
         return out
 
     def summarize(self, query: str, retrieved: List[RetrievalResult]) -> str:
+        if not retrieved:
+            return "No documents are available in the vector store. Please add some documents to the data directory and restart the application."
+            
         texts = [r.text for r in retrieved if r.text]
         context = "\n\n".join(texts)
         if not context:
-            return "No relevant documents found."
-        prompt = (
-            f"Summarize the following context for the query: '{query}'. "
-            "Quote relevant lines, keep the explanation concise, and include a short final answer.\n\n"
-            f"Context:\n{context}\n\nSummary:"
-        )
-        response = self.llm.invoke(prompt)
-        return response.content
+            return "No relevant documents found for your query."
+        
+        # Using proper message formatting for better LLM interaction
+        system_message = SystemMessage(content="You are a helpful assistant that summarizes documents based on queries. Provide clear, concise summaries with relevant quotes when appropriate.")
+        human_message = HumanMessage(content=f"""
+Based on the following context, answer the query: '{query}'
+
+Context:
+{context}
+
+Please provide a comprehensive answer based solely on the provided context. If you quote specific information, indicate it clearly.
+""")
+        
+        try:
+            response = self.llm.invoke([system_message, human_message])
+            return response.content
+        except Exception as e:
+            return f"Error generating response: {str(e)}. Please check your GROQ_API_KEY is set correctly."
 
     def search_and_summarize(self, query: str, top_k: int = 5) -> str:
         retrieved = self.retrieve(query, top_k=top_k)
